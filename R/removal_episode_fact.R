@@ -12,6 +12,7 @@
 
 library(DBI)
 library(stringr)
+library(tidyr)
 library(dplyr)
 
 # establishing db connection
@@ -20,8 +21,10 @@ con <- dbConnect(odbc::odbc(), "POC")
 
 # getting data
 
-tbl(con, "[annual_report].[ca_fc_afcars_extracts]") %>%
-  filter(recnumbr == 4021) %>% as_data_frame()
+## Joe suggested using tbl, I was having connection problems
+## and wanted to just get the script working!
+# tbl(con, "[annual_report].[ca_fc_afcars_extracts]") %>%
+#   filter(recnumbr == 4021) %>% as_data_frame()
 
 afcars <-
 dbGetQuery(con, "SELECT recnumbr
@@ -39,13 +42,15 @@ dbGetQuery(con, "SELECT recnumbr
 
 date_to_numeric <- function(x){as.numeric(str_replace_all(as.character(x), '-', ''))}
 
-placement_fact <- 
-group_by(afcars, recnumbr, latremdt) %>%
+removal_episode_fact <- 
+  group_by(afcars, recnumbr, latremdt) %>%
   arrange(desc(repdat)) %>%
   mutate(eps_rnk = row_number()) %>%
+  group_by(recnumbr) %>%
+  mutate(max_totalrem = max(totalrem)) %>%
   ungroup() %>%
   filter(eps_rnk == 1) %>%
-  # filter(recnumbr %in% c(4021, 2740417, 1418573, 1501651)) %>%
+  filter(recnumbr %in% c(4021, 2740417, 1418573, 1501651)) %>%
   arrange(recnumbr, repdat) %>%
   mutate(int_rem1dt = date_to_numeric(rem1dt)
          , int_dlstfcdt = date_to_numeric(dlstfcdt)
@@ -64,13 +69,24 @@ group_by(afcars, recnumbr, latremdt) %>%
          , repdat
          , int_dlstfcdt
          , totalrem
+         , max_totalrem
   ) %>%
   ## WILL EVENTUALLY REMOVE
+  ## Creating flags for problematic records
   group_by(id_prsn) %>%
   arrange(id_removal_epsisode_fact) %>%
   mutate(latremdt_flag = ifelse(lag(id_cal_dim_begin) > id_cal_dim_begin, 1, 0)
          , totalrem_flag = ifelse(totalrem - lag(totalrem) != 1, 1, 0)
-         ) 
+         )%>%
+  ungroup()
+
+removal_episode_fact <- 
+  select(removal_episode_fact, - max_totalrem) %>% 
+  ## THis complete function (from tidyr) seemed like the easiest way to
+  ## create the new rows, but if anyone has a better idea, let's do it!
+  complete(id_prsn, totalrem = seq(min(totalrem), max(totalrem))) %>%
+  left_join(select(removal_episode_fact, id_prsn, max_totalrem) %>% distinct()) %>%
+  filter(totalrem <= max_totalrem)
 
 
 
