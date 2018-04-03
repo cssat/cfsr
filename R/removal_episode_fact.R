@@ -20,6 +20,9 @@ con <- dbConnect(odbc::odbc(), "POC")
 
 # getting data
 
+tbl(con, "[annual_report].[ca_fc_afcars_extracts]") %>%
+  filter(recnumbr == 4021) %>% as_data_frame()
+
 afcars <-
 dbGetQuery(con, "SELECT recnumbr
 	                  , repdat
