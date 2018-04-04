@@ -50,7 +50,7 @@ removal_episode_fact <-
   mutate(max_totalrem = max(totalrem)) %>%
   ungroup() %>%
   filter(eps_rnk == 1) %>%
-  filter(recnumbr %in% c(4021, 2740417, 1418573, 1501651)) %>%
+  # filter(recnumbr %in% c(4021, 2740417, 1418573, 1501651)) %>%
   arrange(recnumbr, repdat) %>%
   mutate(int_rem1dt = date_to_numeric(rem1dt)
          , int_dlstfcdt = date_to_numeric(dlstfcdt)
