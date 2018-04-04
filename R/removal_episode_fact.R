@@ -13,6 +13,7 @@
 library(DBI)
 library(stringr)
 library(tidyr)
+library(dbplyr)
 library(dplyr)
 
 # establishing db connection
@@ -25,6 +26,11 @@ con <- dbConnect(odbc::odbc(), "POC")
 ## and wanted to just get the script working!
 # tbl(con, "[annual_report].[ca_fc_afcars_extracts]") %>%
 #   filter(recnumbr == 4021) %>% as_data_frame()
+
+DBI::dbListTables(con)
+
+tbl(con, in_schema("annual_report", "ca_fc_afcars_extracts"))
+
 
 afcars <-
 dbGetQuery(con, "SELECT recnumbr
@@ -50,7 +56,7 @@ removal_episode_fact <-
   mutate(max_totalrem = max(totalrem)) %>%
   ungroup() %>%
   filter(eps_rnk == 1) %>%
-  filter(recnumbr %in% c(4021, 2740417, 1418573, 1501651)) %>%
+  # filter(recnumbr %in% c(4021, 2740417, 1418573, 1501651)) %>%
   arrange(recnumbr, repdat) %>%
   mutate(int_rem1dt = date_to_numeric(rem1dt)
          , int_dlstfcdt = date_to_numeric(dlstfcdt)
