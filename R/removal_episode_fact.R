@@ -17,7 +17,6 @@ library(dbplyr)
 library(dplyr)
 
 # establishing db connection
-
 con <- dbConnect(odbc::odbc(), "POC")
 
 # getting data
@@ -25,6 +24,7 @@ afcars <-
   tbl(con, in_schema("annual_report", "ca_fc_afcars_extracts")) %>%
   dplyr::select(recnumbr
                 , repdat
+                , dob
                 , rem1dt
                 , dlstfcdt
                 , latremdt
@@ -60,25 +60,22 @@ removal_episode_fact <- afcars %>%
   # keep only last report:
   filter(eps_rnk == 1) %>% # this makes episode-level df
   arrange(recnumbr, repdat) %>%
-  mutate(int_rem1dt = date_to_numeric(rem1dt) # make dates into integers
+  mutate(int_rem1dt = date_to_integer(rem1dt) # make dates into integers
          , int_dlstfcdt = date_to_integer(dlstfcdt)
          , int_latremdt = date_to_integer(latremdt)
          , int_dodfcdt = date_to_integer(dodfcdt)
          # fill in missing discharge dates with the next episode's last discharge date:
-         , int_dodfcdt = ifelse((lead(totalrem) - totalrem) == 1 & is.na(int_dodfcdt), lead(int_dlstfcdt), int_dodfcdt))  
-
+         , int_dodfcdt = ifelse((lead(totalrem) - totalrem) == 1 & is.na(int_dodfcdt), lead(int_dlstfcdt), int_dodfcdt)) %>%
 ## WILL EVENTUALLY REMOVE
 ## Creating flags for problematic records
 ## What should we do with records that have a totalrem starting at 0?
-problem_records <- removal_episode_fact %>%
   group_by(recnumbr) %>%
+         # Flag where previous last removal is after last removal:
   mutate(latremdt_flag = ifelse(lag(int_latremdt) > int_latremdt, 1, 0)
+         # Flag where an episode is missing or where the first record of an episode is not the first removal
          , totalrem_flag = ifelse(totalrem - lag(totalrem) != 1 | min(totalrem) != 1, 1, 0)
   )%>%
-  ungroup() %>%
-  filter(latremdt_flag == 1 | totalrem_flag == 1) 
-  
-removal_episode_fact2 <- removal_episode_fact %>%
+  ungroup()%>%
   ## This complete function (from tidyr) seemed like the easiest way to
   ## create the new rows, but if anyone has a better idea, let's do it!
   # expand df by adding row for each potential/unrecorded removal (0-18)  
@@ -91,6 +88,7 @@ removal_episode_fact2 <- removal_episode_fact %>%
   mutate(id_removal_epsisode_fact = row_number()) %>%
   # subset/rename data
   select(id_prsn = recnumbr
+         , dob
          , id_cal_dim_begin = int_latremdt
          , id_cal_dim_end = int_dodfcdt
          , id_cal_dim_date_begin = latremdt
@@ -101,5 +99,6 @@ removal_episode_fact2 <- removal_episode_fact %>%
          , totalrem
          , max_totalrem
   )
+
 
 
